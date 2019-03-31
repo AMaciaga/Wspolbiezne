@@ -1,3 +1,4 @@
+// Autor: ALeksandra Maciąga 236369
 package dif
 
 var TaskListCapacity = 20

@@ -1,3 +1,5 @@
+-- Autor: ALeksandra Maciąga 236369
+
 with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Numerics.Discrete_Random; use Ada.Numerics;
 with Ada.Containers.Vectors; use Ada.Containers;
