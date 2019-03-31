@@ -52,8 +52,8 @@ func resultGetGuardian(b bool, c chan<- int) chan<- int {
 	return c
 }
 func ceo(taskWriteChan chan<- *task) {
+	ops := [3]string{"+", "-", "*"}
 	for {
-		ops := [3]string{"+", "-", "*"}
 		i := rand.Intn(3)
 		o := ops[i]
 		t := &task{
@@ -170,7 +170,7 @@ func prompt(getTaskListState chan<- chan bool, getWarehouseState chan<- chan boo
 		fmt.Println("Menu")
 		fmt.Println("1. Wyswietl stan magazynu")
 		fmt.Println("2. Wyswietl liste zadań do wykonania")
-		fmt.Println("Wybierz nr czynnosci:")
+		fmt.Print("Wybierz nr czynnosci: ")
 		scanner.Scan()
 		text := scanner.Text()
 		switch text {
