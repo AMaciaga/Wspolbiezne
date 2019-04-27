@@ -2,18 +2,24 @@
 package main
 
 import (
-	dif "./dif"
 	"bufio"
 	"fmt"
 	"math/rand"
 	"os"
 	"time"
+
+	dif "./dif"
 )
 
 type task struct {
 	firstArg  int
 	secondArg int
 	op        string
+	result    int
+}
+type info struct {
+	aTask    *task
+	userChan chan *task
 }
 
 // zabezpiecznie przed odwolaniem sie  do pustego miejsca w pamieci
@@ -66,9 +72,9 @@ func resultGetGuardian(b bool, c chan<- int) chan<- int {
 
 // watek prezesa
 func ceo(taskWriteChan chan<- *task) {
-	ops := [3]string{"+", "-", "*"}
+	ops := [3]string{"+", "*"}
 	for {
-		i := rand.Intn(3)
+		i := rand.Intn(2)
 		o := ops[i]
 		//  stworzenie nowego zadania
 		t := &task{
@@ -114,38 +120,97 @@ func taskMag(taskWriteChan <-chan *task, taskGetChan chan<- *task, getTaskListSt
 }
 
 // wątek pracownika
-func worker(id int, taskGetChan <-chan *task, resultWriteChan chan<- int) {
-
+func worker(id int, taskGetChan <-chan *task, resultWriteChan chan<- int, workerChan chan *task, addMachines []chan *info, multMachines []chan *info, workerStateChan <-chan chan bool) {
+	isImpatient := rand.Intn(2)
+	solved := 0
 	for {
 		select {
 		// pobranie zadania z listy zadan
+		case msg := <-workerStateChan:
+			{
+				s := "niecierpliwy"
+				if isImpatient == 0 {
+					s = "cierpliwy"
+				}
+				fmt.Println("Pracownik nr", id, " (", s, ") rozwiazal :", solved, " zadan")
+				msg <- true
+			}
 		case msg := <-taskGetChan:
 			{
 				if dif.LoudMode {
 					fmt.Println("Pracownik nr", id, "rozwiazuje zadanie:", *msg)
 				}
-				result := 0
 				// rozwiazanie zadania
-				switch msg.op {
-				case "+":
-					{
-						result = msg.firstArg + msg.secondArg
+				t := *msg
+				if isImpatient == 0 {
+					switch msg.op {
+					case "+":
+						{
+							machineID := rand.Intn(dif.NumberOfAddMachines)
+							pack := &info{
+								aTask:    msg,
+								userChan: workerChan}
+							addMachines[machineID] <- pack
+							t = *<-workerChan
+						}
+					case "*":
+						{
+							machineID := rand.Intn(dif.NumberOfMultMachines)
+							pack := &info{
+								aTask:    msg,
+								userChan: workerChan}
+							multMachines[machineID] <- pack
+							t = *<-workerChan
+						}
 					}
-				case "-":
-					{
-						result = msg.firstArg - msg.secondArg
-					}
-				case "*":
-					{
-						result = msg.firstArg * msg.secondArg
+				} else {
+					switch msg.op {
+					case "+":
+						{
+
+							machineID := 0
+							pack := &info{
+								aTask:    msg,
+								userChan: workerChan}
+							acquired := false
+							for !acquired {
+								select {
+								case addMachines[machineID] <- pack:
+									acquired = true
+								case <-time.After(time.Duration(dif.ImpatientWorkerWaitTime) * time.Millisecond):
+									machineID = (machineID + 1) % dif.NumberOfAddMachines
+								}
+							}
+							t = *<-workerChan
+						}
+					case "*":
+						{
+							machineID := 0
+							pack := &info{
+								aTask:    msg,
+								userChan: workerChan}
+							acquired := false
+							for !acquired {
+								select {
+								case multMachines[machineID] <- pack:
+									acquired = true
+								case <-time.After(time.Duration(dif.ImpatientWorkerWaitTime) * time.Millisecond):
+									machineID = (machineID + 1) % dif.NumberOfMultMachines
+								}
+							}
+							t = *<-workerChan
+						}
 					}
 				}
+
 				// wstawienie rozwiazania do magazynu
-				resultWriteChan <- result
+				resultWriteChan <- t.result
+				solved++
 				if dif.LoudMode {
-					fmt.Println("Pracownik nr", id, "otrzymał wynik:", result)
+					fmt.Println("Pracownik nr", id, "otrzymał wynik:", t.result)
 				}
 			}
+
 		}
 		// uspienie pracownika
 		time.Sleep(time.Duration(dif.WorkerSleepTime) * time.Millisecond)
@@ -199,15 +264,15 @@ func client(resultGetChan <-chan int) {
 }
 
 // wątek to obsługi typu "spokojnego"
-func prompt(getTaskListState chan<- chan bool, getWarehouseState chan<- chan bool) {
-	getTaskListReturn := make(chan bool)
-	getWarehouseReturn := make(chan bool)
+func prompt(getTaskListState chan<- chan bool, getWarehouseState chan<- chan bool, getWorkerStates []chan chan bool) {
+	getReturn := make(chan bool)
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		// wyswietlenie menu dla trybu cichego
 		fmt.Println("Menu")
 		fmt.Println("1. Wyswietl stan magazynu")
 		fmt.Println("2. Wyswietl liste zadań do wykonania")
+		fmt.Println("3. Wyswietl statystyki pracownikow")
 		fmt.Print("Wybierz nr czynnosci: ")
 		scanner.Scan()
 		text := scanner.Text()
@@ -215,13 +280,20 @@ func prompt(getTaskListState chan<- chan bool, getWarehouseState chan<- chan boo
 		switch text {
 		case "1":
 			{
-				getWarehouseState <- getWarehouseReturn
-				<-getWarehouseReturn
+				getWarehouseState <- getReturn
+				<-getReturn
 			}
 		case "2":
 			{
-				getTaskListState <- getTaskListReturn
-				<-getTaskListReturn
+				getTaskListState <- getReturn
+				<-getReturn
+			}
+		case "3":
+			{
+				for i := range getWorkerStates {
+					getWorkerStates[i] <- getReturn
+					<-getReturn
+				}
 			}
 		default:
 			{
@@ -229,6 +301,33 @@ func prompt(getTaskListState chan<- chan bool, getWarehouseState chan<- chan boo
 			}
 		}
 
+	}
+}
+
+func addMachine(machineChan chan *info) {
+	for {
+		select {
+		case msg := <-machineChan:
+			{
+				task := msg.aTask
+				time.Sleep(time.Duration(dif.AddMachineWorkTime) * time.Millisecond)
+				task.result = task.firstArg + task.secondArg
+				msg.userChan <- task
+			}
+		}
+	}
+}
+func multMachine(machineChan chan *info) {
+	for {
+		select {
+		case msg := <-machineChan:
+			{
+				task := msg.aTask
+				time.Sleep(time.Duration(dif.AddMachineWorkTime) * time.Millisecond)
+				task.result = task.firstArg * task.secondArg
+				msg.userChan <- task
+			}
+		}
 	}
 }
 
@@ -246,13 +345,38 @@ func main() {
 	// channel do wywolania wypisania zawartości magazynu
 	getWarehouseState := make(chan chan bool)
 
+	workerChans := make([]chan *task, dif.NumberOfWorkers)
+	for i := range workerChans {
+		workerChans[i] = make(chan *task)
+	}
+	workerStateChans := make([]chan chan bool, dif.NumberOfWorkers)
+	for i := range workerStateChans {
+		workerStateChans[i] = make(chan chan bool)
+	}
+
+	addMachineChans := make([]chan *info, dif.NumberOfAddMachines)
+	for i := range addMachineChans {
+		addMachineChans[i] = make(chan *info)
+	}
+
+	multMachineChans := make([]chan *info, dif.NumberOfMultMachines)
+	for i := range multMachineChans {
+		multMachineChans[i] = make(chan *info)
+	}
+
 	// wywołanie wątku prezesa
 	go ceo(taskWriteChan)
 	// wywołanie wątku listy zadań
 	go taskMag(taskWriteChan, taskGetChan, getTaskListState)
 	// wywołanie wątków pracowników
+	for w := 1; w <= dif.NumberOfAddMachines; w++ {
+		go addMachine(addMachineChans[w-1])
+	}
+	for w := 1; w <= dif.NumberOfMultMachines; w++ {
+		go multMachine(multMachineChans[w-1])
+	}
 	for w := 1; w <= dif.NumberOfWorkers; w++ {
-		go worker(w, taskGetChan, resultWriteChan)
+		go worker(w, taskGetChan, resultWriteChan, workerChans[w-1], addMachineChans, multMachineChans, workerStateChans[w-1])
 	}
 	// wywołanie wątku magazynu
 	go resultWarehouse(resultWriteChan, resultGetChan, getWarehouseState)
@@ -260,7 +384,7 @@ func main() {
 	go client(resultGetChan)
 	// wywołanie wątku dla trybu "spokojnego"
 	if !dif.LoudMode {
-		go prompt(getTaskListState, getWarehouseState)
+		go prompt(getTaskListState, getWarehouseState, workerStateChans)
 	}
 	for {
 	}

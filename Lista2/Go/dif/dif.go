@@ -19,5 +19,20 @@ var WorkerSleepTime = 1000
 // zmienna odpowiedzialna za opoznienie klienta
 var ClientSleepTime = 750
 
+// zmienna odpowiedzialna za czas oczekiwania niecierpliwego pracownika
+var ImpatientWorkerWaitTime = 250
+
+// zmienna odpowiedzialna za ilosc maszyn dodajacych
+var NumberOfAddMachines = 3
+
+//  zmienna odpowiedziala za czas pracy maszyn dodajacych
+var AddMachineWorkTime = 2000
+
+// zmienna odpowiedzialna za ilosc maszyn mnożących
+var NumberOfMultMachines = 3
+
+// zmienna odpowiedziala za czas pracy maszyn mnożących
+var MultMachineWorkTime = 2000
+
 // zmienna odpowiedzialna za wybór trybu "gadatliwego" lub "spokojnego"
 var LoudMode = false
