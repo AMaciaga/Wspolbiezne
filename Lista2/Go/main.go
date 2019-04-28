@@ -21,6 +21,11 @@ type info struct {
 	aTask    *task
 	userChan chan *task
 }
+type workerInfo struct {
+	id        int
+	impatient string
+	solved    int
+}
 
 // zabezpiecznie przed odwolaniem sie  do pustego miejsca w pamieci
 func safeGetTask(b bool, t []task) *task {
@@ -120,21 +125,21 @@ func taskMag(taskWriteChan <-chan *task, taskGetChan chan<- *task, getTaskListSt
 }
 
 // wątek pracownika
-func worker(id int, taskGetChan <-chan *task, resultWriteChan chan<- int, workerChan chan *task, addMachines []chan *info, multMachines []chan *info, workerStateChan <-chan chan bool) {
+func worker(id int, taskGetChan <-chan *task, resultWriteChan chan<- int, workerChan chan *task, addMachines []chan *info, multMachines []chan *info, workerStateChan chan<- *workerInfo) {
 	isImpatient := rand.Intn(2)
 	solved := 0
+	s := "niecierpliwy"
+	if isImpatient == 0 {
+		s = "cierpliwy"
+	}
+	stat := &workerInfo{
+		id:        id,
+		impatient: s,
+		solved:    solved}
+	workerStateChan <- stat
 	for {
 		select {
 		// pobranie zadania z listy zadan
-		case msg := <-workerStateChan:
-			{
-				s := "niecierpliwy"
-				if isImpatient == 0 {
-					s = "cierpliwy"
-				}
-				fmt.Println("Pracownik nr", id, " (", s, ") rozwiazal :", solved, " zadan")
-				msg <- true
-			}
 		case msg := <-taskGetChan:
 			{
 				if dif.LoudMode {
@@ -206,6 +211,11 @@ func worker(id int, taskGetChan <-chan *task, resultWriteChan chan<- int, worker
 				// wstawienie rozwiazania do magazynu
 				resultWriteChan <- t.result
 				solved++
+				stat := &workerInfo{
+					id:        id,
+					impatient: s,
+					solved:    solved}
+				workerStateChan <- stat
 				if dif.LoudMode {
 					fmt.Println("Pracownik nr", id, "otrzymał wynik:", t.result)
 				}
@@ -263,8 +273,32 @@ func client(resultGetChan <-chan int) {
 
 }
 
+func getWorkerStats(workerStatsChan <-chan *workerInfo, getWorkerStat <-chan chan bool) {
+	workerStats := make([]workerInfo, dif.NumberOfWorkers)
+	for {
+		select {
+		case msg := <-workerStatsChan:
+			{
+				workerStats[msg.id-1] = *msg
+			}
+
+		case msg := <-getWorkerStat:
+			{
+				fmt.Println("hi")
+
+				for i := range workerStats {
+					aWorker := workerStats[i]
+					fmt.Println("Pracownik nr", aWorker.id, " (", aWorker.impatient, ") rozwiazal :", aWorker.solved, " zadan")
+
+				}
+				msg <- true
+			}
+		}
+	}
+}
+
 // wątek to obsługi typu "spokojnego"
-func prompt(getTaskListState chan<- chan bool, getWarehouseState chan<- chan bool, getWorkerStates []chan chan bool) {
+func prompt(getTaskListState chan<- chan bool, getWarehouseState chan<- chan bool, getWorkerStat chan<- chan bool) {
 	getReturn := make(chan bool)
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
@@ -290,10 +324,8 @@ func prompt(getTaskListState chan<- chan bool, getWarehouseState chan<- chan boo
 			}
 		case "3":
 			{
-				for i := range getWorkerStates {
-					getWorkerStates[i] <- getReturn
-					<-getReturn
-				}
+				getWorkerStat <- getReturn
+				<-getReturn
 			}
 		default:
 			{
@@ -344,15 +376,13 @@ func main() {
 	getTaskListState := make(chan chan bool)
 	// channel do wywolania wypisania zawartości magazynu
 	getWarehouseState := make(chan chan bool)
+	getWorkerStat := make(chan chan bool)
 
 	workerChans := make([]chan *task, dif.NumberOfWorkers)
 	for i := range workerChans {
 		workerChans[i] = make(chan *task)
 	}
-	workerStateChans := make([]chan chan bool, dif.NumberOfWorkers)
-	for i := range workerStateChans {
-		workerStateChans[i] = make(chan chan bool)
-	}
+	workerStateChans := make(chan *workerInfo)
 
 	addMachineChans := make([]chan *info, dif.NumberOfAddMachines)
 	for i := range addMachineChans {
@@ -376,7 +406,7 @@ func main() {
 		go multMachine(multMachineChans[w-1])
 	}
 	for w := 1; w <= dif.NumberOfWorkers; w++ {
-		go worker(w, taskGetChan, resultWriteChan, workerChans[w-1], addMachineChans, multMachineChans, workerStateChans[w-1])
+		go worker(w, taskGetChan, resultWriteChan, workerChans[w-1], addMachineChans, multMachineChans, workerStateChans)
 	}
 	// wywołanie wątku magazynu
 	go resultWarehouse(resultWriteChan, resultGetChan, getWarehouseState)
@@ -384,7 +414,8 @@ func main() {
 	go client(resultGetChan)
 	// wywołanie wątku dla trybu "spokojnego"
 	if !dif.LoudMode {
-		go prompt(getTaskListState, getWarehouseState, workerStateChans)
+		go getWorkerStats(workerStateChans, getWorkerStat)
+		go prompt(getTaskListState, getWarehouseState, getWorkerStat)
 	}
 	for {
 	}
