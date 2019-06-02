@@ -1,0 +1,28 @@
+V "GNAT Lib v2018"
+P ZX
+
+RN
+RV NO_FIXED_POINT
+
+U dif%s			dif.ads			2ec140bc NE OO PK IL
+
+D dif.ads		20190602184030 2ec140bc dif%s
+D system.ads		20180524051738 32a08138 system%s
+X 1 dif.ads
+2K9*dif 41l5 41e8
+4o5*CeoSleepTime{duration}
+6o5*WorkerSleepTime{duration}
+8o5*ClientSleepTime{duration}
+11o5*ImpatientWorkerWaitTime{duration}
+14i5*TaskListCapacity{integer}
+16i5*WarehouseCapacity{integer}
+18i5*NumberOfWorkers{integer}
+21i5*NumberOfAddMachines{integer}
+23o5*AddMachineWorkTime{duration}
+27i5*NumberOfMultMachines{integer}
+29o5*MultMachineWorkTime{duration}
+31i5*MachineBreakProbabilit{integer}
+33i5*NumberOfServiceWorkers{integer}
+35o5*ServiceWorkerTravelTime{duration}
+39b5*LoudMode{boolean}
+
