@@ -1,4 +1,4 @@
-// Autor: Aleksandra Maciąga 236369
+// Autor: Aleksandra Maciąga 
 package main
 
 import (

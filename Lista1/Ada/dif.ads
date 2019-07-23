@@ -1,4 +1,4 @@
--- Autor: Aleksandra Maciąga 236369
+-- Autor: Aleksandra Maciąga
 package dif is
     -- zmienna odpowiedzialna za opoznienie prezesa
     CeoSleepTime : Duration := 0.5;

@@ -1,4 +1,4 @@
--- Autor: Aleksandra Maciąga 236369
+-- Autor: Aleksandra Maciąga 
 
 with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Numerics.Discrete_Random; use Ada.Numerics;
